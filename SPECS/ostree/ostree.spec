@@ -1,25 +1,49 @@
 Summary:	Git for operating system binaries
 Name:		ostree
-Version:	2015.3
-Release:	1%{?dist}
-Source0:	http://ftp.gnome.org/pub/GNOME/sources/ostree/%{version}/%{name}-%{version}.tar.xz
+Version:	2015.7
+Release:	2%{?dist}
+Source0:	http://ftp.gnome.org/pub/GNOME/sources/ostree/%{version}/%{name}-%{version}.tar.gz
+%define sha1 ostree=baa502aa46363cd4828d257fb87f5e18a7ed000a
 Source1:	91-ostree.preset
-Patch0:		ostree_syntax_error_fix.patch
+#Patch0:		ostree_syntax_error_fix.patch
 License:	LGPLv2+
 URL:		http://live.gnome.org/OSTree
 Vendor:		VMware, Inc.
 Distribution:	Photon
+BuildRequires:	git
 BuildRequires:	which
 BuildRequires:	libgsystem
 BuildRequires:	xz-devel
 BuildRequires:	gtk-doc
 BuildRequires:	e2fsprogs-devel
 Requires:	libgsystem
+Requires:	gpgme
+Requires:	libassuan
+Requires:	libgpg-error
+Requires:   systemd
+Requires:   libsoup
+Requires:   libsoup-devel
+Requires:   mkinitcpio
+Requires:   dracut
+Requires:   dracut-tools
+Requires:   libarchive
+Requires:   libarchive-devel
 BuildRequires:	attr
 BuildRequires:	python2-libs
 BuildRequires:	python2
 BuildRequires:	gobject-introspection
+BuildRequires:	gobject-introspection-devel
 BuildRequires:	gobject-introspection-python
+BuildRequires:  gpgme-devel
+BuildRequires:  libcap
+BuildRequires:  libsoup
+BuildRequires:  libsoup-devel
+BuildRequires:  mkinitcpio
+BuildRequires:  dracut
+BuildRequires:  dracut-tools
+BuildRequires:  systemd
+BuildRequires:  libarchive
+BuildRequires:  libarchive-devel
 
 %description
 OSTree is a tool for managing bootable, immutable, versioned
@@ -29,15 +53,29 @@ is it a tool for managing full disk images. Instead, it sits between
 those levels, offering a blend of the advantages (and disadvantages)
 of both.
 
+%package devel
+Summary: Development headers for %{name}
+Group: Development/Libraries
+Requires: %{name} = %{version}-%{release}
+
+%description devel
+The %{name}-devel package includes the header files for the %{name} library
+
 %prep
-%setup -q 
-pwd
-%patch0 -p0
+%autosetup -Sgit -n %{name}-%{version}
+git clone git://git.gnome.org/libglnx libglnx
+git clone https://github.com/mendsley/bsdiff bsdiff
+
+#pwd
+#%patch0 -p0
 %build
 env NOCONFIGURE=1 ./autogen.sh
 %configure \
 	--disable-silent-rules \
 	--enable-gtk-doc \
+	--with-dracut \
+	--with-mkinitcpio \
+    --enable-libsoup-client-certs  \
 	--prefix=%{_prefix}
 	  
 make %{?_smp_mflags}
@@ -45,7 +83,11 @@ make %{?_smp_mflags}
 %install
 make install DESTDIR=%{buildroot} INSTALL="install -p -c"
 find %{buildroot} -name '*.la' -delete
-install -D -m 0644 %{SOURCE1} %{buildroot}/%{_prefix}/lib/systemd/system-preset/91-ostree.preset
+install -D -m 0644 %{SOURCE1} %{buildroot}%{_prefix}/lib/systemd/system-preset/91-ostree.preset
+install -vdm 755 %{buildroot}/etc/ostree/remotes.d
+mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/
+cp -R %{buildroot}/lib/systemd/system/*.service %{buildroot}%{_prefix}/lib/systemd/system/
+rm -rf %{buildroot}/lib
 
 %clean
 rm -rf %{buildroot}
@@ -60,16 +102,34 @@ rm -rf %{buildroot}
 %doc COPYING README.md
 %{_bindir}/ostree
 %{_libdir}/*.so.1*
-%{_mandir}/man1/*.gz
+%{_sbindir}/*
+%{_mandir}/man*/*.gz
 %{_prefix}/lib/systemd/system-preset/91-ostree.preset
-%dir %{_datadir}/gtk-doc/html/ostree
+%{_prefix}/lib/systemd/system/ostree*.service
+%dir %{_prefix}/lib/dracut/modules.d/*ostree
+%{_prefix}/lib/dracut/modules.d/98ostree/*
+%{_sysconfdir}/grub.d/*ostree
+%{_sysconfdir}/dracut.conf.d/ostree.conf
+%{_sysconfdir}/ostree-mkinitcpio.conf
+%dir %{_sysconfdir}/ostree/remotes.d
+%{_libdir}/girepository-*/OSTree-*.typelib
+%{_libexecdir}/ostree/grub2*
+%{_libdir}/initcpio/*
 %{_libdir}/lib*.so
+%dir %{_datadir}/gtk-doc/html/ostree
+
+%files devel
 %{_includedir}/*
 %{_libdir}/pkgconfig/*
-%{_sysconfdir}/grub.d/*ostree
-%{_libexecdir}/ostree/grub2*
 %{_datadir}/gtk-doc/html/ostree/*
+%{_datadir}/ostree/*
+%{_datadir}/gir-1.0/OSTree-1.0.gir
+
 %changelog
+*   Sat Jul 11 2015 Touseef Liaqat <tliaqat@vmware.com> 2015.7-2
+-   Add dracut, mkinitcpio and libsoup as dependencies
+*	Wed Jun 17 2015 Anish Swaminathan <anishs@vmware.com> 2015.7-1
+-	Updated the version
 *	Tue Nov 25 2014 Divya Thaluru <dthaluru@vmware.com> 2014.11-1
 -	Initial build. First version
 
